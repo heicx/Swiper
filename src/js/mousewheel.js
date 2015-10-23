@@ -6,14 +6,13 @@ s.mousewheel = {
     lastScrollTime: (new window.Date()).getTime()
 };
 if (s.params.mousewheelControl) {
-    if (document.onmousewheel !== undefined) {
+    try {
+        new window.WheelEvent('wheel');
+        s.mousewheel.event = 'wheel';
+    } catch (e) {}
+
+    if (!s.mousewheel.event && document.onmousewheel !== undefined) {
         s.mousewheel.event = 'mousewheel';
-    }
-    if (!s.mousewheel.event) {
-        try {
-            new window.WheelEvent('wheel');
-            s.mousewheel.event = 'wheel';
-        } catch (e) {}
     }
     if (!s.mousewheel.event) {
         s.mousewheel.event = 'DOMMouseScroll';
@@ -59,17 +58,18 @@ function handleMousewheel(e) {
             delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? - e.deltaX : - e.deltaY;
         }
     }
+    if (delta === 0) return;
 
     if (s.params.mousewheelInvert) delta = -delta;
 
     if (!s.params.freeMode) {
         if ((new window.Date()).getTime() - s.mousewheel.lastScrollTime > 60) {
             if (delta < 0) {
-                if (!s.isEnd || s.params.loop) s.slideNext();
+                if ((!s.isEnd || s.params.loop) && !s.animating) s.slideNext();
                 else if (s.params.mousewheelReleaseOnEdges) return true;
             }
             else {
-                if (!s.isBeginning || s.params.loop) s.slidePrev();
+                if ((!s.isBeginning || s.params.loop) && !s.animating) s.slidePrev();
                 else if (s.params.mousewheelReleaseOnEdges) return true;
             }
         }
@@ -78,16 +78,21 @@ function handleMousewheel(e) {
     }
     else {
         //Freemode or scrollContainer:
-
         var position = s.getWrapperTranslate() + delta * s.params.mousewheelSensitivity;
+        var wasBeginning = s.isBeginning,
+            wasEnd = s.isEnd;
 
-        if (position > 0) position = 0;
-        if (position < s.maxTranslate()) position = s.maxTranslate();
+        if (position >= s.minTranslate()) position = s.minTranslate();
+        if (position <= s.maxTranslate()) position = s.maxTranslate();
 
         s.setWrapperTransition(0);
         s.setWrapperTranslate(position);
         s.updateProgress();
         s.updateActiveIndex();
+
+        if (!wasBeginning && s.isBeginning || !wasEnd && s.isEnd) {
+            s.updateClasses();
+        }
 
         if (s.params.freeModeSticky) {
             clearTimeout(s.mousewheel.timeout);
